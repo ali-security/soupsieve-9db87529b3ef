@@ -590,6 +590,66 @@ class TestInvalid(util.TestCase):
         with self.assertRaises(TypeError):
             sv.filter('div', "not a tag", flags=flags)
 
+    def test_excessive_selectors(self):
+        """Test excessive selectors."""
+
+        # Build a 500 KB selector string: "a,a,a,...,a" (250,000 items)
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(selector)
+
+    def test_excessive_custom_selectors(self):
+        """Test excessive custom selectors."""
+
+        # Build a 500 KB selector string: "a,a,a,...,a" (250,000 items)
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile('div:--custom', custom={':--custom': selector})
+
+    def test_excessive_custom_and_normal_selectors(self):
+        """Test excessive custom and normal selectors."""
+
+        count = 5000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(f':is({selector}):--custom', custom={':--custom': selector})
+
+    def test_excessive_selectors_select(self):
+        """Test excessive selectors through the select API."""
+
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+        soup = self.soup('<div><a></a></div>', 'html.parser')
+
+        with self.assertRaises(ValueError):
+            sv.select(selector, soup)
+
+    def test_excessive_nested_custom_selectors(self):
+        """Test custom selectors that expand exponentially through nesting."""
+
+        custom = {':--l0': 'a'}
+        for i in range(1, 20):
+            custom[':--l{}'.format(i)] = ':--l{0}:--l{0}'.format(i - 1)
+
+        with self.assertRaises(ValueError):
+            sv.compile('div:--l19', custom=custom)
+
+    def test_selectors_under_limit(self):
+        """Test that a large selector list under the limit still compiles."""
+
+        count = 1000
+        selector = ",".join("a" for _ in range(count))
+
+        self.assertEqual(len(sv.compile(selector).selectors), count)
+
 
 class TestSyntaxErrorReporting(util.TestCase):
     """Test reporting of syntax errors."""
