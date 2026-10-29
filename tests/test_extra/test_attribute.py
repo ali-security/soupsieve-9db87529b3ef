@@ -1,5 +1,8 @@
 """Test attribute selectors."""
 from .. import util
+import signal
+import unittest
+import soupsieve as sv
 
 
 class TestAttribute(util.TestCase):
@@ -50,3 +53,43 @@ class TestAttribute(util.TestCase):
             ["div", "0", "1", "2", "3", "pre", "4", "6"],
             flags=util.HTML5
         )
+
+    def assert_syntax_error_no_timeout(self, pattern):
+        """Assert that the pattern fails for a syntax error, not a timeout error."""
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError
+
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(3)
+
+        passed = False
+        try:
+            with self.assertRaises(sv.SelectorSyntaxError):
+                sv.compile(pattern)
+            passed = True
+        except TimeoutError:
+            pass
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+        self.assertTrue(passed)
+
+    @unittest.skipUnless(hasattr(signal, 'SIGALRM'), 'signal.SIGALRM is not available on this platform')
+    def test_bad_attribute_unclused(self):
+        """Test bad attribute fails for syntax error, not timeout error."""
+
+        self.assert_syntax_error_no_timeout('[a="' + ('x' * 300))
+
+    @unittest.skipUnless(hasattr(signal, 'SIGALRM'), 'signal.SIGALRM is not available on this platform')
+    def test_bad_attribute_unclosed_single_quote(self):
+        """Test bad attribute with single quotes fails for syntax error, not timeout error."""
+
+        self.assert_syntax_error_no_timeout("[a='" + ('x' * 300))
+
+    @unittest.skipUnless(hasattr(signal, 'SIGALRM'), 'signal.SIGALRM is not available on this platform')
+    def test_bad_pseudo_value_unclosed(self):
+        """Test unclosed quoted value in a pseudo-class fails for syntax error, not timeout error."""
+
+        self.assert_syntax_error_no_timeout(':lang("' + ('x' * 300))
+        self.assert_syntax_error_no_timeout(":lang('" + ('x' * 300))
